@@ -14,8 +14,27 @@ import skimage.color as color
 import scipy
 from scipy.cluster.hierarchy import linkage, dendrogram
 
+import Onset
+import Chromagram
+import SSM
+import Spectrogram
+
+# ---------- パラメータ ----------
 windowSize = 1024
 siftSize = windowSize / 4
+
+freqAxisList = ['linear', 'log', 'mel']
+freqAxisType = freqAxisList[0]
+
+glcmFeatureNames = ["contrast","dissimilarity","homogeneity","ASM","energy", "correlation"]
+direction = [0, np.pi/4, np.pi/2, 3 * np.pi/4]
+
+# distance = [x for x in range(30)]
+distance = [1]
+
+methodList = ["complete", "ward", "average", "single", "centroid"]
+method = methodList[0]
+# -------------------------------
 
 class glcmFeatures:
     def __init__(self):
@@ -27,54 +46,83 @@ class glcmFeatures:
         self.correlation = []
         self.distances = []
 
-glcmFeatureNames = ["contrast","dissimilarity","homogeneity","ASM","energy", "correlation"]
-direction = [0, np.pi/4, np.pi/2, 3 * np.pi/4]
+distanceAgent = []
 
-#                 0          1        2         3          4
-methodList = ["complete", "ward", "average", "single", "centroid"]
-method = methodList[2]
+#                 0      1              2               3               4              5            6           7             8                  9             10         11          12          13           14            15             16    17     18        19                20        21
+filenameGPR2 = ["GPR2", "GPR2-inverse", "GPR2-a"      , "GPR2-b"      , "GPR2-slow"]
+filenameGPR3 = ["GPR3", "GPR3-inverse", "GPR3-a"      , "GPR3-b"      , "GPR3-c"    , "GPR3-d"]
+filenameList = ["002" , "038"         , "C_clean-dist", "C_dist-clean", "fred_clean", "fred_dist", "k550-120", "k550-120-2", "k550-120-teisei", "k550-120-4", "k550-180","k550-orc", "star_clean","star_dist", filenameGPR2, filenameGPR3, "up", "up8", "octave", "piano and flute", "001", "001-mono"]
+testList =     ["001" , "002-2"       , "009"         , "014"         , "038-2"     , "eien"]
 
-#                 0           1           2        3         4
-filenameGPR2 = ["GPR2","GPR2-inverse","GPR2-a","GPR2-b","GPR2-slow"]
-
-#                 0           1           2        3       4        5
-filenameGPR3 = ["GPR3","GPR3-inverse","GPR3-a","GPR3-b","GPR3-c","GPR3-d"]
-
-#                 0     1          2              3            4             5           6          7            8                9            10          11           12           13            14
-filenameList = ["002","038","C_clean-dist","C_dist-clean","fred_clean", "fred_dist","k550-120","k550-120-2","k550-120-teisei","k550-120-4","k550-180","star_clean","star_dist", filenameGPR2, filenameGPR3]
 
 def main():
-    filename = "testData/" + filenameList[14][4]
-    y, sr = librosa.load(filename + ".wav")
-    drawSpectrogram(y, sr, filename)
-    print(sr)
+    filename = "testData/" + "001"
+    y, sr = librosa.load(filename + ".wav", sr = 44100)
+
+    spectrogram = Spectrogram.Spectrogram(y, sr, windowSize, siftSize, filename)
+    spectrogram.export(freqAxisType)
+
+    onset = Onset.Onset(y, sr)
+    print(onset.detection())
+    onset.draw()
+
+    chromagram = Chromagram.Chromagram(y, sr, filename)
+    chroma = chromagram.calc()
+    chromagram.draw()
+    chromagram.export()
+
+    mfcc = librosa.feature.mfcc(y=y, sr=sr)
+
+    ssm = SSM.SSM(y, sr, chroma)
+    ssm.draw()
 
     #-----拍で分割する場合に使用する-----
     beatStructure = loadBeat(filename)
-    divideSpectrograms = divideSpectrogramByBeat(filename, beatStructure, sr)
+    print(beatStructure)
+
+    divideSpectrograms = spectrogram.divideByBeat(beatStructure)
+
     #divideSpectrograms = divideSpectrogramBy8Beat(filename, beatStructure, sr)
     #----------------------------------
 
-    #divideSpectrograms = divideSpectrogram(filename)
+    #divideSpectrograms = spectrogram.divide(15)
 
     files = os.listdir(filename)
-    agent0 = glcmFeatures()
-    agent45 = glcmFeatures()
-    agent90 = glcmFeatures()
+    agent0   = glcmFeatures()
+    agent45  = glcmFeatures()
+
+    for i in range(len(distance)):
+        agent90 = glcmFeatures()
+        distanceAgent.append(agent90)
+
+    # agent90  = glcmFeatures()
     agent135 = glcmFeatures()
 
     for binpng in files:
         binName = os.path.join(filename +"/" + binpng)
         glcm = calcGLCM(binName)
-        calcGLCMfeatures(agent0, glcm, 0)
-        calcGLCMfeatures(agent45, glcm, 1)
-        calcGLCMfeatures(agent90, glcm, 2)
-        calcGLCMfeatures(agent135, glcm, 3)
+
+        calcGLCMfeatures(agent0,   glcm, 0, 0)
+        calcGLCMfeatures(agent45,  glcm, 0, 1)
+
+        for i in range(len(distanceAgent)):
+            calcGLCMfeatures(distanceAgent[i],  glcm, i, 2)
+
+        calcGLCMfeatures(agent135, glcm, 0, 3)
+
+    for i in range(len(distanceAgent)):
+        print(distanceAgent[i].contrast)
 
     standardizationFeatures(agent0)
     standardizationFeatures(agent45)
-    standardizationFeatures(agent90)
+
+    # for i in range(len(distanceAgent)):
+    #     standardizationFeatures(distanceAgent[i])
+
     standardizationFeatures(agent135)
+
+    for i in range(len(distanceAgent)):
+        print(distanceAgent[i].contrast)
 
     calcGLCMfeaturesDistance(agent0)
     calcGLCMfeaturesDistance(agent45)
@@ -92,7 +140,10 @@ def main():
     # drawDendrogram(agent0)
     # drawGLCMfeatures(agent45)
     # drawDendrogram(agent45)
-    drawGLCMfeatures(agent90)
+
+    for i in range(len(distanceAgent)):
+        drawGLCMfeatures(distanceAgent[i])
+
     drawDendrogram(agent90)
     # drawGLCMfeatures(agent135)
     # drawDendrogram(agent135)
@@ -149,7 +200,7 @@ def calcGLCM(binName):
     grayImage = color.rgb2gray(image)
     gray256Image = skimage.img_as_ubyte(grayImage)
     io.imshow(gray256Image)
-    glcm = greycomatrix(gray256Image, [1], direction, levels=256, normed=True, symmetric=True)
+    glcm = greycomatrix(gray256Image, distance, direction, levels=256, normed=True, symmetric=True)
     #print(glcm[:, :, 0, 0]) # [i, j, d, theta]
     return glcm
 
@@ -161,13 +212,13 @@ def calcGLCMfeaturesDistance(features):
     features.distances.append(calcDistance(features.energy))
     features.distances.append(calcDistance(features.correlation))
 
-def calcGLCMfeatures(agent, glcm, direction):
-    agent.contrast.append(greycoprops(glcm, 'contrast')[0][direction]) #[d, a] d'th distance and a'th angle
-    agent.dissimilarity.append(greycoprops(glcm, 'dissimilarity')[0][direction])
-    agent.homogeneity.append(greycoprops(glcm, 'homogeneity')[0][direction])
-    agent.ASM.append(greycoprops(glcm, 'ASM')[0][direction])
-    agent.energy.append(greycoprops(glcm, 'energy')[0][direction])
-    agent.correlation.append(greycoprops(glcm, 'correlation')[0][direction])
+def calcGLCMfeatures(agent, glcm, distance, direction):
+    agent.contrast.append(greycoprops(glcm, 'contrast')[distance][direction]) #[d, a] d'th distance and a'th angle
+    agent.dissimilarity.append(greycoprops(glcm, 'dissimilarity')[distance][direction])
+    agent.homogeneity.append(greycoprops(glcm, 'homogeneity')[distance][direction])
+    agent.ASM.append(greycoprops(glcm, 'ASM')[distance][direction])
+    agent.energy.append(greycoprops(glcm, 'energy')[distance][direction])
+    agent.correlation.append(greycoprops(glcm, 'correlation')[distance][direction])
 
 def calcDistance(data):
     distance = []
@@ -186,29 +237,6 @@ def drawGraph(label, data, index):
     plt.subplot(6, 1, index) # 2行1列の2番目
     plt.plot(data)
     plt.ylabel(label)
-
-def divideSpectrogramByBeat(filename, beatStructure, sr):
-    spectrogram = Image.open(filename + '_spectrogram.png')
-    invSr = 1.0/sr
-    samplePsec = invSr * siftSize
-    divideSpectrograms = []
-    beatSize = len(beatStructure["beat"])
-
-    if os.path.isdir(filename):
-        print ("ok")
-    else:
-        os.mkdir(filename)
-
-    for i in range(len(beatStructure["beat"])-1):
-        divSpectrogram = spectrogram.crop((beatStructure["beat"][i] / 100.0 / samplePsec, 0, beatStructure["beat"][i+1] / 100.0 / samplePsec, windowSize/2)) #(left, top, right, bottom)
-        divideSpectrograms.append(divSpectrogram)
-        divSpectrogram.save(filename +'/'+ '{0:03d}'.format(i) + '.png')
-
-    divSpectrogram = spectrogram.crop((beatStructure["beat"][beatSize-1] / 100.0 / samplePsec, 0, spectrogram.size[0], windowSize/2)) #(left, top, right, bottom)
-    divideSpectrograms.append(divSpectrogram)
-    divSpectrogram.save(filename +'/'+ '{0:03d}'.format(beatSize-1) + '.png')
-
-    return divideSpectrograms
 
 def divideSpectrogramBy8Beat(filename, beatStructure, sr):
     spectrogram = Image.open(filename + '_spectrogram.png')
@@ -244,31 +272,6 @@ def divideSpectrogramBy8Beat(filename, beatStructure, sr):
     divSpectrogram.save(filename +'/'+ '{0:03d}'.format(2 * (beatSize-1) + 1) + '.png')
 
     return divideSpectrograms
-
-def divideSpectrogram(filename):
-    spectrogram = Image.open(filename + '_spectrogram.png')
-    divideSpectrograms = []
-    splitSize = 15
-
-    if os.path.isdir(filename):
-        print ("ok")
-    else:
-        os.mkdir(filename)
-
-    for i in range(spectrogram.size[0] / splitSize):
-        divSpectrogram = spectrogram.crop((splitSize * i, 0, splitSize * (i+1), windowSize/2)) #(left, top, right, bottom)
-        divideSpectrograms.append(divSpectrogram)
-        divSpectrogram.save(filename +'/'+ '{0:03d}'.format(i) + '.png')
-
-    return divideSpectrograms
-
-def drawSpectrogram(y, sr, filename):
-    S = np.abs(librosa.stft(y, n_fft=windowSize, hop_length=siftSize))
-    plt.figure(figsize=(len(S[0])/100.0, len(S)/100.0))
-    librosa.display.specshow(librosa.logamplitude(S**2, ref_power=np.median), sr=sr, y_axis='log', x_axis='time',cmap = "gray_r")
-    plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-    plt.axis('off')
-    plt.savefig(filename + "_spectrogram.png")
 
 def loadBeat(filename):
     f = open(filename + '_beat.txt', 'r')
