@@ -23,5 +23,5 @@ class SSM:
         librosa.display.specshow(lag, x_axis='time', y_axis='lag', cmap = "gray_r")
         plt.title('Binary recurrence (symmetric)')
 
-        plt.tight_layout()
+        #plt.tight_layout()
         plt.show()

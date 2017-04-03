@@ -18,6 +18,8 @@ import Onset
 import Chromagram
 import SSM
 import Spectrogram
+import GLCMfeatures
+from copy import deepcopy
 
 # ---------- パラメータ ----------
 windowSize = 1024
@@ -36,16 +38,6 @@ methodList = ["complete", "ward", "average", "single", "centroid"]
 method = methodList[0]
 # -------------------------------
 
-class glcmFeatures:
-    def __init__(self):
-        self.contrast = []
-        self.dissimilarity = []
-        self.homogeneity = []
-        self.ASM = []
-        self.energy = []
-        self.correlation = []
-        self.distances = []
-
 distanceAgent = []
 
 #                 0      1              2               3               4              5            6           7             8                  9             10         11          12          13           14            15             16    17     18        19                20        21
@@ -56,20 +48,29 @@ testList =     ["001" , "002-2"       , "009"         , "014"         , "038-2" 
 
 
 def main():
-    filename = "testData/" + "001"
-    y, sr = librosa.load(filename + ".wav", sr = 44100)
+    filename = "testData/" + "k550-r"
+    y, sr = librosa.load(filename + ".wav")
+
+    audioduration = float(len(y))/sr
 
     spectrogram = Spectrogram.Spectrogram(y, sr, windowSize, siftSize, filename)
     spectrogram.export(freqAxisType)
 
     onset = Onset.Onset(y, sr)
-    print(onset.detection())
-    onset.draw()
+
+    onsetStructure = {}
+    onsetStructure["audioduration"] = audioduration
+    onsetList = onset.detection().tolist()
+    onsetStructure["beat"] = onsetList
+    exportOnset(filename, onsetStructure)
+
+    #onset.draw()
 
     chromagram = Chromagram.Chromagram(y, sr, filename)
     chroma = chromagram.calc()
-    chromagram.draw()
-    chromagram.export()
+    #chromagram.draw()
+    chromagram.export(np.inf)
+    chromagram.export(None)
 
     mfcc = librosa.feature.mfcc(y=y, sr=sr)
 
@@ -77,7 +78,8 @@ def main():
     ssm.draw()
 
     #-----拍で分割する場合に使用する-----
-    beatStructure = loadBeat(filename)
+    #beatStructure = loadBeat(filename)
+    beatStructure = loadOnset(filename)
     print(beatStructure)
 
     divideSpectrograms = spectrogram.divideByBeat(beatStructure)
@@ -88,46 +90,49 @@ def main():
     #divideSpectrograms = spectrogram.divide(15)
 
     files = os.listdir(filename)
-    agent0   = glcmFeatures()
-    agent45  = glcmFeatures()
 
-    for i in range(len(distance)):
-        agent90 = glcmFeatures()
-        distanceAgent.append(agent90)
+    agent0   = GLCMfeatures.GLCMfeatures()
+    agent45  = GLCMfeatures.GLCMfeatures()
 
-    # agent90  = glcmFeatures()
-    agent135 = glcmFeatures()
+    # 距離ごとにGLCMを作成しようとしたときの残骸
+
+    # for i in range(len(distance)):
+    #     agent90 = glcmFeatures()
+    #     distanceAgent.append(agent90)
+
+    agent90  = GLCMfeatures.GLCMfeatures()
+    agent135 = GLCMfeatures.GLCMfeatures()
+    agentSUM = GLCMfeatures.GLCMfeatures()
 
     for binpng in files:
         binName = os.path.join(filename +"/" + binpng)
-        glcm = calcGLCM(binName)
+        glcm = agent0.calcGLCM(binName, distance, direction) # GLCMはどのエージェントでも同じ（わかりにくい）
+        sumglcm = agent0.sumGLCM(glcm)
 
-        calcGLCMfeatures(agent0,   glcm, 0, 0)
-        calcGLCMfeatures(agent45,  glcm, 0, 1)
+        # for i in range(len(distanceAgent)):
+        #     calcGLCMfeatures(distanceAgent[i],  glcm, i, 2)
 
-        for i in range(len(distanceAgent)):
-            calcGLCMfeatures(distanceAgent[i],  glcm, i, 2)
+        agent0.calcGLCMfeatures(glcm, 0, 0)
+        agent45.calcGLCMfeatures(glcm, 0, 1)
+        agent90.calcGLCMfeatures(glcm, 0, 2)
+        agent135.calcGLCMfeatures(glcm, 0, 3)
 
-        calcGLCMfeatures(agent135, glcm, 0, 3)
-
-    for i in range(len(distanceAgent)):
-        print(distanceAgent[i].contrast)
+        agentSUM.calcSumGLCMfeatures(sumglcm)
 
     standardizationFeatures(agent0)
     standardizationFeatures(agent45)
+    standardizationFeatures(agent90)
+    standardizationFeatures(agent135)
+    standardizationFeatures(agentSUM)
 
     # for i in range(len(distanceAgent)):
     #     standardizationFeatures(distanceAgent[i])
 
-    standardizationFeatures(agent135)
-
-    for i in range(len(distanceAgent)):
-        print(distanceAgent[i].contrast)
-
-    calcGLCMfeaturesDistance(agent0)
-    calcGLCMfeaturesDistance(agent45)
-    calcGLCMfeaturesDistance(agent90)
-    calcGLCMfeaturesDistance(agent135)
+    agent0.calcGLCMfeaturesDistance()
+    agent45.calcGLCMfeaturesDistance()
+    agent90.calcGLCMfeaturesDistance()
+    agent135.calcGLCMfeaturesDistance()
+    agentSUM.calcGLCMfeaturesDistance()
 
     plt.clf()
     plt.figure(1)
@@ -136,42 +141,49 @@ def main():
     #plt.subplot(7,1,1) # 7行1列の1番目
     plt.imshow(img)
 
-    # drawGLCMfeatures(agent0)
-    # drawDendrogram(agent0)
-    # drawGLCMfeatures(agent45)
-    # drawDendrogram(agent45)
+    agent0.drawGLCMfeatures()
+    agent45.drawGLCMfeatures()
+    agent90.drawGLCMfeatures()
+    agent135.drawGLCMfeatures()
+    agentSUM.drawGLCMfeatures()
 
-    for i in range(len(distanceAgent)):
-        drawGLCMfeatures(distanceAgent[i])
-
+    drawDendrogram(agent0)
+    drawDendrogram(agent45)
     drawDendrogram(agent90)
-    # drawGLCMfeatures(agent135)
-    # drawDendrogram(agent135)
+    drawDendrogram(agent135)
+    result = drawDendrogram(agentSUM)
+
+    # for i in range(len(distanceAgent)):
+    #     drawGLCMfeatures(distanceAgent[i])
 
     plt.show()
 
-def drawGLCMfeatures(agent):
-    plt.figure(2)
-    #plt.title("GLCM Features", fontsize=25, fontname='serif')
-    #plt.legend(('0 degree', '45 degree', '90 degree', '135 degree'), loc='400')
-    drawGraph('contrast', agent.contrast, 1)
-    drawGraph('dissimilarity', agent.dissimilarity, 2)
-    drawGraph('homogeneity', agent.homogeneity, 3)
-    drawGraph('ASM', agent.ASM, 4)
-    #drawGraph('energy', agent.energy, 5)
-    drawGraph('correlation', agent.correlation, 5)
+    groupingStructure = {}
+    groupingStructure["audioduration"] = audioduration
+    groupingStructure["grouping"] = []
+    groupingStructure["grouping"].append(beatStructure["beat"])
 
-    plt.figure(3)
-    #plt.title("Features Distance")
-    #plt.legend(('0 degree', '45 degree', '90 degree', '135 degree'))
-    for i in range(len(agent.distances)):
-        drawGraph('distance', agent.distances[i], i+1)
+    checkList = range(0, len(beatStructure["beat"]))
+    print(checkList)
+
+    prev = 0
+
+    for i in range(0, len(result)):
+        prevGrouping = deepcopy(groupingStructure["grouping"][i])
+        prevGrouping.remove(groupingStructure["grouping"][0][checkList[int(result[i][1])]])
+        checkList.append(checkList[int(result[i][0])])
+        groupingStructure["grouping"].append(prevGrouping)
+
+    print(groupingStructure)
+
+    exportGroup(filename, groupingStructure)
 
 def drawDendrogram(agent):
     plt.figure()
     vectors = convStructToVector(agent)
     result = linkage(vectors, metric = 'euclidean', method = method)
     dendrogram(result, count_sort  = 'ascending')
+    return result
 
 def standardizationFeatures(features):
     features.contrast = standardization(features.contrast)
@@ -179,7 +191,7 @@ def standardizationFeatures(features):
     features.homogeneity = standardization(features.homogeneity)
     features.ASM = standardization(features.ASM)
     features.energy = standardization(features.energy)
-    features.correlation = standardization(features.correlation)
+    #features.correlation = standardization(features.correlation) # 相関は標準化しなくて良い
 
 def standardization(vector):
     vector_copy = np.copy(vector)
@@ -191,51 +203,13 @@ def convStructToVector(features):
     for i in range(len(features.contrast)):
         vector = []
         #vector = [features.contrast[i], features.dissimilarity[i], features.homogeneity[i], features.ASM[i], features.energy[i], features.correlation[i], i*1000]
-        vector = [features.contrast[i], features.dissimilarity[i], features.homogeneity[i], features.ASM[i], features.correlation[i], i*10]
+        vector = [features.contrast[i], features.dissimilarity[i], features.homogeneity[i], features.ASM[i], features.correlation[i], i*1000]
         vectors.append(vector)
     return vectors
-
-def calcGLCM(binName):
-    image = io.imread(binName)
-    grayImage = color.rgb2gray(image)
-    gray256Image = skimage.img_as_ubyte(grayImage)
-    io.imshow(gray256Image)
-    glcm = greycomatrix(gray256Image, distance, direction, levels=256, normed=True, symmetric=True)
-    #print(glcm[:, :, 0, 0]) # [i, j, d, theta]
-    return glcm
-
-def calcGLCMfeaturesDistance(features):
-    features.distances.append(calcDistance(features.contrast))
-    features.distances.append(calcDistance(features.dissimilarity))
-    features.distances.append(calcDistance(features.homogeneity))
-    features.distances.append(calcDistance(features.ASM))
-    features.distances.append(calcDistance(features.energy))
-    features.distances.append(calcDistance(features.correlation))
-
-def calcGLCMfeatures(agent, glcm, distance, direction):
-    agent.contrast.append(greycoprops(glcm, 'contrast')[distance][direction]) #[d, a] d'th distance and a'th angle
-    agent.dissimilarity.append(greycoprops(glcm, 'dissimilarity')[distance][direction])
-    agent.homogeneity.append(greycoprops(glcm, 'homogeneity')[distance][direction])
-    agent.ASM.append(greycoprops(glcm, 'ASM')[distance][direction])
-    agent.energy.append(greycoprops(glcm, 'energy')[distance][direction])
-    agent.correlation.append(greycoprops(glcm, 'correlation')[distance][direction])
-
-def calcDistance(data):
-    distance = []
-    for i in range(len(data)-1):
-        aFeatures = np.array(data[i])
-        bFeatures = np.array(data[i+1])
-        distance.append(np.linalg.norm(aFeatures - bFeatures))
-    return distance
 
 def drawBarGraph(label, data, index):
     plt.subplot(6, 1, index) # 6行1列のi番目
     plt.bar(range(len(data)), data, width=0.3)
-    plt.ylabel(label)
-
-def drawGraph(label, data, index):
-    plt.subplot(6, 1, index) # 2行1列の2番目
-    plt.plot(data)
     plt.ylabel(label)
 
 def divideSpectrogramBy8Beat(filename, beatStructure, sr):
@@ -277,6 +251,19 @@ def loadBeat(filename):
     f = open(filename + '_beat.txt', 'r')
     return json.load(f)
     #keyList = beatStructure.keys()
+
+def loadOnset(filename):
+    f = open(filename + '_onset.txt', 'r')
+    return json.load(f)
+    #keyList = beatStructure.keys()
+
+def exportOnset(filename, structure):
+    f = open(filename + "_onset.txt", "w")
+    json.dump(structure, f)
+
+def exportGroup(filename, structure):
+    f = open(filename + "_group_Predict.txt", "w")
+    json.dump(structure, f)
 
 if __name__ == '__main__':
     main()

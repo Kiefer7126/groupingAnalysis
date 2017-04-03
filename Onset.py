@@ -9,8 +9,8 @@ class Onset:
         self.sr = sr
 
     def detection(self):
-        self.onset_frames = librosa.onset.onset_detect(y=self.y, sr=self.sr)
-        self.onset_times = librosa.frames_to_time(self.onset_frames[:], sr=self.sr)
+        self.onset_frames = librosa.onset.onset_detect(y=self.y, sr=self.sr, hop_length=512)
+        self.onset_times = librosa.frames_to_time(self.onset_frames[:], sr=self.sr, hop_length=512)
         onset_times_int = self.onset_times * 100 # 有効数字3桁の整数
         onset_times_int = onset_times_int.astype(np.int64)
 

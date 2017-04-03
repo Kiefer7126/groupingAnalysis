@@ -10,7 +10,7 @@ class Chromagram:
         self.filename = filename
 
     def calc(self):
-        self.chroma = librosa.feature.chroma_stft(y=self.y, sr=self.sr)
+        self.chroma = librosa.feature.chroma_stft(y=self.y, sr=self.sr, norm=0)
         return self.chroma
 
     def draw(self):
@@ -27,8 +27,8 @@ class Chromagram:
 
         plt.show()
 
-    def export(self):
-        chroma = librosa.feature.chroma_stft(y=self.y, sr=self.sr)
+    def export(self, norm):
+        chroma = librosa.feature.chroma_stft(y=self.y, sr=self.sr, norm = norm)
         plt.figure(figsize=(len(chroma[0])/100.0, len(chroma)/100.0))
         librosa.display.specshow(chroma, y_axis='chroma', x_axis='time', cmap = "gray_r")
         plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
