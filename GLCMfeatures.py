@@ -17,6 +17,7 @@ class GLCMfeatures:
         self.energy = []
         self.correlation = []
         self.distances = []
+        self.glcms = []
 
     def calcGLCMfeatures(self, glcm, distance, direction):
         self.contrast.append(greycoprops(glcm, 'contrast')[distance][direction]) #[d, a] d'th distance and a'th angle
@@ -110,22 +111,15 @@ class GLCMfeatures:
                 mx += i * glcm[i,j]
                 my += j * glcm[i,j]
 
-        print(mx)
-        print(my)
-
         for i in range(glcm.shape[0]):
             for j in range(glcm.shape[1]):
                 sx += (i - mx) * (i - mx) * glcm[i,j]
                 sy += (j - my) * (j - my) * glcm[i,j]
 
-        print(sx)
-        print(sy)
-
         for i in range(glcm.shape[0]):
             for j in range(glcm.shape[1]):
                 correlation += ((i - mx) * (j - my) * glcm[i,j] / math.sqrt(sx * sy))
 
-        print(correlation)
         # for i in range(glcm.shape[0]):
         #     for j in range(glcm.shape[1]):
         #
@@ -170,3 +164,10 @@ class GLCMfeatures:
         plt.subplot(6, 1, index) # 2行1列の2番目
         plt.plot(data)
         plt.ylabel(label)
+
+    def printFeatures(self):
+        print(self.contrast)
+        print(self.dissimilarity)
+        print(self.homogeneity)
+        print(self.ASM)
+        print(self.correlation)

@@ -19,6 +19,7 @@ import Chromagram
 import SSM
 import Spectrogram
 import GLCMfeatures
+import Clustering
 from copy import deepcopy
 
 # ---------- パラメータ ----------
@@ -78,16 +79,17 @@ def main():
     ssm.draw()
 
     #-----拍で分割する場合に使用する-----
-    #beatStructure = loadBeat(filename)
-    beatStructure = loadOnset(filename)
-    print(beatStructure)
+    beatStructure = loadBeat(filename)
+
+    #-----オンセットで分割する場合に使用する-----
+    #beatStructure = loadOnset(filename)
 
     divideSpectrograms = spectrogram.divideByBeat(beatStructure)
 
     #divideSpectrograms = divideSpectrogramBy8Beat(filename, beatStructure, sr)
     #----------------------------------
 
-    #divideSpectrograms = spectrogram.divide(15)
+    #divideSpectrograms = spectrogram.divide(10)
 
     files = os.listdir(filename)
 
@@ -118,12 +120,13 @@ def main():
         agent135.calcGLCMfeatures(glcm, 0, 3)
 
         agentSUM.calcSumGLCMfeatures(sumglcm)
+        agentSUM.glcms.append(sumglcm)
 
     standardizationFeatures(agent0)
     standardizationFeatures(agent45)
     standardizationFeatures(agent90)
     standardizationFeatures(agent135)
-    standardizationFeatures(agentSUM)
+    #standardizationFeatures(agentSUM)
 
     # for i in range(len(distanceAgent)):
     #     standardizationFeatures(distanceAgent[i])
@@ -141,16 +144,29 @@ def main():
     #plt.subplot(7,1,1) # 7行1列の1番目
     plt.imshow(img)
 
-    agent0.drawGLCMfeatures()
-    agent45.drawGLCMfeatures()
-    agent90.drawGLCMfeatures()
-    agent135.drawGLCMfeatures()
+    #agent0.drawGLCMfeatures()
+    #agent45.drawGLCMfeatures()
+    #agent90.drawGLCMfeatures()
+    #agent135.drawGLCMfeatures()
     agentSUM.drawGLCMfeatures()
 
-    drawDendrogram(agent0)
-    drawDendrogram(agent45)
-    drawDendrogram(agent90)
-    drawDendrogram(agent135)
+    glcmFeatureVector = []
+    glcmFeatureVector.append(agentSUM.contrast)
+    glcmFeatureVector.append(agentSUM.dissimilarity)
+    glcmFeatureVector.append(agentSUM.homogeneity)
+    glcmFeatureVector.append(agentSUM.ASM)
+    glcmFeatureVector.append(agentSUM.energy)
+    glcmFeatureVector.append(agentSUM.correlation)
+
+    np_glcmFeatureVector = np.array(glcmFeatureVector)
+
+    glcmSSM = SSM.SSM(y, sr, np_glcmFeatureVector)
+    glcmSSM.draw()
+
+    #drawDendrogram(agent0)
+    #drawDendrogram(agent45)
+    #drawDendrogram(agent90)
+    #drawDendrogram(agent135)
     result = drawDendrogram(agentSUM)
 
     # for i in range(len(distanceAgent)):
@@ -158,13 +174,15 @@ def main():
 
     plt.show()
 
+    clustering = Clustering.Clustering(audioduration, beatStructure, agentSUM.glcms)
+    clustering.test(np_glcmFeatureVector)
+
     groupingStructure = {}
     groupingStructure["audioduration"] = audioduration
     groupingStructure["grouping"] = []
     groupingStructure["grouping"].append(beatStructure["beat"])
 
     checkList = range(0, len(beatStructure["beat"]))
-    print(checkList)
 
     prev = 0
 
@@ -173,6 +191,7 @@ def main():
         prevGrouping.remove(groupingStructure["grouping"][0][checkList[int(result[i][1])]])
         checkList.append(checkList[int(result[i][0])])
         groupingStructure["grouping"].append(prevGrouping)
+
 
     print(groupingStructure)
 
@@ -203,7 +222,7 @@ def convStructToVector(features):
     for i in range(len(features.contrast)):
         vector = []
         #vector = [features.contrast[i], features.dissimilarity[i], features.homogeneity[i], features.ASM[i], features.energy[i], features.correlation[i], i*1000]
-        vector = [features.contrast[i], features.dissimilarity[i], features.homogeneity[i], features.ASM[i], features.correlation[i], i*1000]
+        vector = [features.contrast[i], features.dissimilarity[i], features.homogeneity[i], features.ASM[i], features.correlation[i]]
         vectors.append(vector)
     return vectors
 
