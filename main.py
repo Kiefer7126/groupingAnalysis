@@ -4,7 +4,7 @@ from __future__ import print_function
 import librosa
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as pltmain
 import json
 import os
 import skimage
@@ -27,7 +27,7 @@ windowSize = 1024
 siftSize = windowSize / 4
 
 freqAxisList = ['linear', 'log', 'mel']
-freqAxisType = freqAxisList[0]
+freqAxisType = freqAxisList[2]
 
 glcmFeatureNames = ["contrast","dissimilarity","homogeneity","ASM","energy", "correlation"]
 direction = [0, np.pi/4, np.pi/2, 3 * np.pi/4]
@@ -47,9 +47,8 @@ filenameGPR3 = ["GPR3", "GPR3-inverse", "GPR3-a"      , "GPR3-b"      , "GPR3-c"
 filenameList = ["002" , "038"         , "C_clean-dist", "C_dist-clean", "fred_clean", "fred_dist", "k550-120", "k550-120-2", "k550-120-teisei", "k550-120-4", "k550-180","k550-orc", "star_clean","star_dist", filenameGPR2, filenameGPR3, "up", "up8", "octave", "piano and flute", "001", "001-mono"]
 testList =     ["001" , "002-2"       , "009"         , "014"         , "038-2"     , "eien"]
 
-
 def main():
-    filename = "testData/" + "k550-r"
+    filename = "testData/" + "k331-h"
     y, sr = librosa.load(filename + ".wav")
 
     audioduration = float(len(y))/sr
@@ -74,27 +73,24 @@ def main():
     chromagram.export(None)
 
     mfcc = librosa.feature.mfcc(y=y, sr=sr)
-
     ssm = SSM.SSM(y, sr, chroma)
     ssm.draw()
 
-    #-----拍で分割する場合に使用する-----
-    beatStructure = loadBeat(filename)
+    beatStructure = loadBeat(filename) # 拍で分割
+    #beatStructure = loadOnset(filename) # オンセットで分割
 
-    #-----オンセットで分割する場合に使用する-----
-    #beatStructure = loadOnset(filename)
-
-    divideSpectrograms = spectrogram.divideByBeat(beatStructure)
-
-    #divideSpectrograms = divideSpectrogramBy8Beat(filename, beatStructure, sr)
-    #----------------------------------
-
-    #divideSpectrograms = spectrogram.divide(10)
+    divideSpectrograms = spectrogram.divideByBeat(beatStructure) # beatStructureで分割
+    #divideSpectrograms = divideSpectrogramBy8Beat(filename, beatStructure, sr) # beatStructureの半分の長さで分割
+    #divideSpectrograms = spectrogram.divide(10) # 引数の長さで分割
 
     files = os.listdir(filename)
 
     agent0   = GLCMfeatures.GLCMfeatures()
     agent45  = GLCMfeatures.GLCMfeatures()
+    agent90  = GLCMfeatures.GLCMfeatures()
+    agent135 = GLCMfeatures.GLCMfeatures()
+    agentSUM = GLCMfeatures.GLCMfeatures() # 4方向の合計のGLCM
+    agentSUMstand = GLCMfeatures.GLCMfeatures() # 4方向の合計のGLCMを標準化
 
     # 距離ごとにGLCMを作成しようとしたときの残骸
 
@@ -102,14 +98,11 @@ def main():
     #     agent90 = glcmFeatures()
     #     distanceAgent.append(agent90)
 
-    agent90  = GLCMfeatures.GLCMfeatures()
-    agent135 = GLCMfeatures.GLCMfeatures()
-    agentSUM = GLCMfeatures.GLCMfeatures()
-
     for binpng in files:
         binName = os.path.join(filename +"/" + binpng)
         glcm = agent0.calcGLCM(binName, distance, direction) # GLCMはどのエージェントでも同じ（わかりにくい）
         sumglcm = agent0.sumGLCM(glcm)
+        sumglcmStand = agent0.sumGLCM(glcm)
 
         # for i in range(len(distanceAgent)):
         #     calcGLCMfeatures(distanceAgent[i],  glcm, i, 2)
@@ -121,12 +114,14 @@ def main():
 
         agentSUM.calcSumGLCMfeatures(sumglcm)
         agentSUM.glcms.append(sumglcm)
+        agentSUMstand.calcSumGLCMfeatures(sumglcmStand)
+        agentSUMstand.glcms.append(sumglcmStand)
 
     standardizationFeatures(agent0)
     standardizationFeatures(agent45)
     standardizationFeatures(agent90)
     standardizationFeatures(agent135)
-    #standardizationFeatures(agentSUM)
+    standardizationFeatures(agentSUMstand)
 
     # for i in range(len(distanceAgent)):
     #     standardizationFeatures(distanceAgent[i])
@@ -135,47 +130,43 @@ def main():
     agent45.calcGLCMfeaturesDistance()
     agent90.calcGLCMfeaturesDistance()
     agent135.calcGLCMfeaturesDistance()
-    agentSUM.calcGLCMfeaturesDistance()
+    agentSUMstand.calcGLCMfeaturesDistance()
 
-    plt.clf()
-    plt.figure(1)
+    pltmain.clf()
+    pltmain.figure(1)
     #plt.subplots_adjust(left=0.3, bottom=0, right=0.9, top=1, wspace=0.4, hspace=0.5)
     img = np.array( Image.open(filename + '_spectrogram.png') )
     #plt.subplot(7,1,1) # 7行1列の1番目
-    plt.imshow(img)
+    pltmain.imshow(img)
 
     #agent0.drawGLCMfeatures()
     #agent45.drawGLCMfeatures()
     #agent90.drawGLCMfeatures()
     #agent135.drawGLCMfeatures()
-    agentSUM.drawGLCMfeatures()
+    agentSUMstand.drawGLCMfeatures()
 
-    glcmFeatureVector = []
-    glcmFeatureVector.append(agentSUM.contrast)
-    glcmFeatureVector.append(agentSUM.dissimilarity)
-    glcmFeatureVector.append(agentSUM.homogeneity)
-    glcmFeatureVector.append(agentSUM.ASM)
-    glcmFeatureVector.append(agentSUM.energy)
-    glcmFeatureVector.append(agentSUM.correlation)
+    glcmFeatureVector = makeFeatureVectors(agentSUM)
+    glcmStandFeatureVector = makeFeatureVectors(agentSUMstand)
 
     np_glcmFeatureVector = np.array(glcmFeatureVector)
+    np_glcmStandFeatureVector = np.array(glcmStandFeatureVector)
 
-    glcmSSM = SSM.SSM(y, sr, np_glcmFeatureVector)
-    glcmSSM.draw()
+    glcmSSM = SSM.SSM(y, sr, np_glcmStandFeatureVector)
+    np_novelty = glcmSSM.draw()
 
     #drawDendrogram(agent0)
     #drawDendrogram(agent45)
     #drawDendrogram(agent90)
     #drawDendrogram(agent135)
-    result = drawDendrogram(agentSUM)
+    result = drawDendrogram(agentSUMstand)
 
     # for i in range(len(distanceAgent)):
     #     drawGLCMfeatures(distanceAgent[i])
 
-    plt.show()
+    pltmain.show()
 
     clustering = Clustering.Clustering(audioduration, beatStructure, agentSUM.glcms)
-    clustering.test(np_glcmFeatureVector)
+    clustering.makeGroupingStructure(np_glcmFeatureVector, np_novelty)
 
     groupingStructure = {}
     groupingStructure["audioduration"] = audioduration
@@ -192,13 +183,21 @@ def main():
         checkList.append(checkList[int(result[i][0])])
         groupingStructure["grouping"].append(prevGrouping)
 
-
-    print(groupingStructure)
-
     exportGroup(filename, groupingStructure)
 
+def makeFeatureVectors(agent):
+    vectors = []
+    vectors.append(agent.contrast)
+    vectors.append(agent.dissimilarity)
+    vectors.append(agent.homogeneity)
+    vectors.append(agent.ASM)
+    vectors.append(agent.energy)
+    vectors.append(agent.correlation)
+
+    return vectors
+
 def drawDendrogram(agent):
-    plt.figure()
+    pltmain.figure()
     vectors = convStructToVector(agent)
     result = linkage(vectors, metric = 'euclidean', method = method)
     dendrogram(result, count_sort  = 'ascending')
@@ -227,9 +226,9 @@ def convStructToVector(features):
     return vectors
 
 def drawBarGraph(label, data, index):
-    plt.subplot(6, 1, index) # 6行1列のi番目
-    plt.bar(range(len(data)), data, width=0.3)
-    plt.ylabel(label)
+    pltmain.subplot(6, 1, index) # 6行1列のi番目
+    pltmain.bar(range(len(data)), data, width=0.3)
+    pltmain.ylabel(label)
 
 def divideSpectrogramBy8Beat(filename, beatStructure, sr):
     spectrogram = Image.open(filename + '_spectrogram.png')

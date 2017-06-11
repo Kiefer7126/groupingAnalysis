@@ -1,5 +1,5 @@
 # coding:UTF-8
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as pltspect
 import librosa
 import numpy as np
 from PIL import Image
@@ -15,11 +15,11 @@ class Spectrogram:
 
     def export(self, freqAxisType):
         S = np.abs(librosa.stft(self.y, n_fft=self.windowSize, hop_length=self.siftSize))
-        plt.figure(figsize=(len(S[0])/100.0, len(S)/100.0))
+        pltspect.figure(figsize=(len(S[0])/100.0, len(S)/100.0))
         librosa.display.specshow(librosa.logamplitude(S**2, ref_power=np.median), sr=self.sr, y_axis = freqAxisType, x_axis='time',cmap = "gray_r")
-        plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-        plt.axis('off')
-        plt.savefig(self.filename + "_spectrogram.png")
+        pltspect.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+        pltspect.axis('off')
+        pltspect.savefig(self.filename + "_spectrogram.png")
 
     def divide(self, splitSize):
         spectrogram = Image.open(self.filename + '_spectrogram.png')

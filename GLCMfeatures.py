@@ -6,7 +6,7 @@ from skimage import io
 from skimage.feature import greycomatrix, greycoprops
 import skimage.color as color
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as pltglcm
 
 class GLCMfeatures:
     def __init__(self):
@@ -144,7 +144,7 @@ class GLCMfeatures:
         return distance
 
     def drawGLCMfeatures(self):
-        plt.figure(2)
+        pltglcm.figure(2)
         #plt.title("GLCM Features", fontsize=25, fontname='serif')
         #plt.legend(('0 degree', '45 degree', '90 degree', '135 degree'), loc='400')
         self.drawGraph('contrast', self.contrast, 1)
@@ -154,16 +154,16 @@ class GLCMfeatures:
         #drawGraph('energy', agent.energy, 5)
         self.drawGraph('correlation', self.correlation, 5)
 
-        plt.figure(3)
+        pltglcm.figure(3)
         #plt.title("Features Distance")
         #plt.legend(('0 degree', '45 degree', '90 degree', '135 degree'))
         for i in range(len(self.distances)):
             self.drawGraph('distance', self.distances[i], i+1)
 
     def drawGraph(self, label, data, index):
-        plt.subplot(6, 1, index) # 2行1列の2番目
-        plt.plot(data)
-        plt.ylabel(label)
+        pltglcm.subplot(6, 1, index) # 2行1列の2番目
+        pltglcm.plot(data)
+        pltglcm.ylabel(label)
 
     def printFeatures(self):
         print(self.contrast)
